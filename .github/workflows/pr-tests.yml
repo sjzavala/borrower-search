@@ -6,13 +6,54 @@ on:
     # selection rather than requiring a new push.
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
-  tests:
+  test:
     name: Playwright
-    uses: sjzavala/claude-qa-tms/.github/workflows/intelligent-runner.yml@main
-    permissions:
-      contents: read
-      pull-requests: write
-    with:
-      test-dir: tests
-      label: use-intelligent-runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Required: the selector diffs against the merge base.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Select the specs this diff can affect
+        id: select
+        uses: sjzavala/playwright-test-selector@v1
+        with:
+          test-dir: tests
+          label: use-intelligent-runner
+          comment: 'true'
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        timeout-minutes: 6
+        run: npx playwright install chromium
+
+      - name: Run tests
+        env:
+          SPECS: ${{ steps.select.outputs.specs }}
+        run: |
+          # Unquoted on purpose: the selector emits a space-separated list of paths, and
+          # an empty value correctly degrades to running the whole suite.
+          # shellcheck disable=SC2086
+          npx playwright test $SPECS
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
