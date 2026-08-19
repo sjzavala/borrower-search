@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-19T18:09:41.474Z",
+  "updatedAt": "2026-08-19T18:09:43.835Z",
   "runs": [
     {
       "key": "32279931489-blocking#1",
@@ -36,6 +36,15 @@
       "commitSha": "c87827f9a096f0e7cd28f1b62e26e61ed930cb17",
       "branch": "main",
       "startedAt": "2026-08-19T18:09:41.474Z",
+      "framework": "playwright"
+    },
+    {
+      "key": "32285671617-quarantined#1",
+      "id": "32285671617-quarantined",
+      "attempt": 1,
+      "commitSha": "c87827f9a096f0e7cd28f1b62e26e61ed930cb17",
+      "branch": "main",
+      "startedAt": "2026-08-19T18:09:43.835Z",
       "framework": "playwright"
     }
   ],
@@ -101,6 +110,11 @@
         "pass"
       ],
       "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": [
+        "pass"
+      ]
+    },
+    "32285671617-quarantined#1": {
+      "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box": [
         "pass"
       ]
     }

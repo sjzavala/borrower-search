@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-19T18:09:41.474Z",
+  "updatedAt": "2026-08-19T18:09:43.835Z",
   "tests": [
     {
       "id": "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box",
