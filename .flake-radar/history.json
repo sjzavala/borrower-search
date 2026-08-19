@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-19T17:09:50.257Z",
+  "runs": [
+    {
+      "key": "32279931489-blocking#1",
+      "id": "32279931489-blocking",
+      "attempt": 1,
+      "commitSha": "18b394b0484528dcad9b104eddde7a9e966e334d",
+      "branch": "main",
+      "startedAt": "2026-08-19T17:09:50.257Z",
+      "framework": "playwright"
+    }
+  ],
+  "tests": {
+    "chromium|search-case-insensitive-first-name.spec.js::BOR-5 — borrower search matches regardless of query case": {
+      "file": "search-case-insensitive-first-name.spec.js",
+      "title": "BOR-5 — borrower search matches regardless of query case",
+      "project": "chromium",
+      "lastError": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  getByRole('rowgroup').nth(1).getByRole('row')\nExpected: 3"
+    },
+    "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box": {
+      "file": "search-race-stale-response.spec.js",
+      "title": "BOR-9 — the results table matches the query in the search box",
+      "project": "chromium",
+      "lastError": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  getByRole('rowgroup').nth(1).getByRole('row')\nExpected: 3"
+    },
+    "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": {
+      "file": "smoke.spec.js",
+      "title": "BOR-1 — borrower search page loads with its core controls",
+      "project": "chromium",
+      "lastError": null
+    }
+  },
+  "observations": {
+    "32279931489-blocking#1": {
+      "chromium|search-case-insensitive-first-name.spec.js::BOR-5 — borrower search matches regardless of query case": [
+        "pass"
+      ],
+      "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box": [
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": [
+        "pass"
+      ]
+    }
+  },
+  "quarantine": {},
+  "quarantineLog": []
+}
