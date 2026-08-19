@@ -1,0 +1,95 @@
+# Calibrate the deliberate flake for this runner.
+#
+# The stale-response race in BOR-9 is decided by whether each API response expires before
+# or after the next one. The server delays by `600 - query.length * 120` ms, so typing one
+# character every 120ms makes all five land at the same instant — and the whole transition
+# from reliable failure to reliable success spans about three milliseconds of keystroke
+# spacing.
+#
+# Three milliseconds is narrower than the difference between a laptop and a shared CI
+# runner, so a value tuned on one is wrong on the other. It failed 3/3 on ubuntu-latest at
+# the value calibrated locally, and a test that *always* fails is not flaky — flake-radar
+# correctly scores it as broken and refuses to quarantine it. So the fixture has to be
+# calibrated where it runs.
+#
+# Run this by hand, read the table, and set the repository variable RACE_DELAY_MS to a
+# value in the mixed band. Both test jobs in flake-radar.yml read it.
+#
+#   gh workflow run flake-calibration.yml -f runs=10
+#   gh variable set RACE_DELAY_MS --body 117
+
+name: Flake calibration
+
+on:
+  workflow_dispatch:
+    inputs:
+      delays:
+        description: 'Space-separated keystroke delays to try, in ms.'
+        required: false
+        default: '111 114 117 120 123'
+      runs:
+        description: 'Runs per delay. More is slower but tighter.'
+        required: false
+        default: '8'
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: Sweep the keystroke delay
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browsers
+        timeout-minutes: 6
+        run: npx playwright install chromium
+
+      - name: Sweep
+        env:
+          DELAYS: ${{ inputs.delays }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          set -uo pipefail
+          {
+            echo '## Flake calibration'
+            echo
+            echo "Runner: ${RUNNER_OS} · ${RUNS} runs per delay"
+            echo
+            echo '| Keystroke delay | Passed | Failed | Failure rate |'
+            echo '|---|---|---|---|'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for delay in $DELAYS; do
+            pass=0
+            fail=0
+            for _ in $(seq 1 "$RUNS"); do
+              # retries=0: each run must be one independent observation, or a retry would
+              # mask the very failures being counted.
+              if RACE_DELAY_MS="$delay" npx playwright test tests/search-race-stale-response.spec.js \
+                   --reporter=line --retries=0 > /dev/null 2>&1; then
+                pass=$((pass + 1))
+              else
+                fail=$((fail + 1))
+              fi
+            done
+            rate=$(( fail * 100 / RUNS ))
+            echo "delay=${delay}ms  pass=${pass}  fail=${fail}  (${rate}% failure)"
+            echo "| ${delay}ms | ${pass} | ${fail} | ${rate}% |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          {
+            echo
+            echo 'Pick a delay in the mixed band — somewhere around a 30–60% failure rate —'
+            echo 'and set it as the repository variable `RACE_DELAY_MS`.'
+            echo
+            echo 'A delay that never fails gives flake-radar nothing to score. One that'
+            echo '*always* fails is worse than useless: it is a broken test, not a flaky one,'
+            echo 'and flake-radar will correctly refuse to quarantine it.'
+          } >> "$GITHUB_STEP_SUMMARY"

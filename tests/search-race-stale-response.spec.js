@@ -56,14 +56,24 @@ import { test, expect } from '@playwright/test';
  *   112ms  →  7 pass / 1 fail        120ms  →  6 pass / 0 fail
  *
  * The whole transition from reliable failure to reliable success spans about three
- * milliseconds. 111 sits inside it, at roughly a 40% failure rate.
+ * milliseconds. 111 sits inside it on that machine, at roughly a 40% failure rate.
  *
- * Tune it if it lands too far to one side on your hardware — lower means the stale
- * response wins more often. That sensitivity is not a flaw in the fixture, it is the thing
- * being demonstrated: a flaky test is one whose verdict is decided by the machine it ran on
- * rather than by the code under test.
+ * Three milliseconds is narrower than the gap between a laptop and a shared CI runner, so
+ * that number does not travel. At 111 on `ubuntu-latest` this failed 3 out of 3 — and a
+ * test that *always* fails is not flaky. flake-radar scores it as broken and refuses to
+ * quarantine it, which is the correct call and also no demo at all.
+ *
+ * So CI calibrates rather than assumes: `.github/workflows/flake-calibration.yml` sweeps
+ * the delay on the runner and the repository variable `RACE_DELAY_MS` carries the answer.
+ *
+ * That sensitivity is not a flaw in the fixture, it is the thing being demonstrated: a
+ * flaky test is one whose verdict is decided by the machine it ran on rather than by the
+ * code under test.
  */
-const KEYSTROKE_DELAY_MS = Number(process.env.RACE_DELAY_MS ?? 111);
+// `|| 111` rather than `?? 111`: an unset repository variable arrives as an empty string,
+// not as undefined, and Number('') is 0 — which would fire all five requests at once and
+// turn the fixture into a guaranteed failure.
+const KEYSTROKE_DELAY_MS = Number(process.env.RACE_DELAY_MS) || 111;
 
 test(
   'BOR-9 — the results table matches the query in the search box',
