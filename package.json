@@ -10,7 +10,10 @@
     "test:ui": "playwright test --ui",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "preserver": "docker compose up -d db"
+    "preserver": "docker compose up -d db",
+    "verify:bugs": "node scripts/verify-planted-bugs.mjs",
+    "verify:security": "node scripts/verify-control-endpoints-absent.mjs",
+    "test:isolation": "playwright test tests/isolation --workers=4"
   },
   "dependencies": {
     "cors": "^2.8.5",

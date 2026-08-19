@@ -39,6 +39,9 @@ export default defineConfig({
   webServer: [
     {
       command: 'npm run server',
+      // Test mode: the /test control endpoints only exist here, and the isolation fixtures
+      // depend on them. See server/test-routes.js for why they are absent everywhere else.
+      env: { NODE_ENV: 'test' },
       url: 'http://localhost:4000/health',
       reuseExistingServer: true,
       timeout: 90_000,
