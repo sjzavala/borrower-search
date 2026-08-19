@@ -25,10 +25,29 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  // Two servers, each with its own readiness check.
+  //
+  // This used to be one entry running `npm run dev` and waiting on the client at :3000.
+  // That worked only because the old in-memory API was serving before the first request
+  // could arrive. Now the API waits for Postgres and seeds 60 rows before it listens, so
+  // waiting on the client alone let specs run against an API that was not up yet — the page
+  // rendered, the fetch failed, and the table never appeared.
+  //
+  // `/health` is the right gate rather than the port: it reports `ok` only when the
+  // dataset is actually loaded, so "the server is listening" and "the server can answer"
+  // are not confused.
+  webServer: [
+    {
+      command: 'npm run server',
+      url: 'http://localhost:4000/health',
+      reuseExistingServer: true,
+      timeout: 90_000,
+    },
+    {
+      command: 'npm run client',
+      url: 'http://localhost:3000',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+  ],
 });

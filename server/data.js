@@ -47,3 +47,27 @@ function build() {
 }
 
 export const borrowers = build();
+
+/**
+ * The three seeded users.
+ *
+ * Roles whose UI **visibly differs** — otherwise caching a `storageState` per role proves
+ * nothing, because every cached session renders the same page.
+ *
+ *   analyst      read-only; no status control rendered
+ *   underwriter  may change a borrower's status
+ *   admin        additionally sees the credit score column
+ *
+ * The email is the primary key and the session reference. It is fixed here, which is what
+ * lets a cached cookie survive a schema reset — see server/db/schema.sql.
+ *
+ * The password is the same for all three and is not a secret: this is a sandbox whose
+ * whole dataset is published in the repo.
+ */
+export const SANDBOX_PASSWORD = 'sandbox';
+
+export const users = [
+  { email: 'analyst@example.com', displayName: 'Avery Analyst', role: 'analyst' },
+  { email: 'underwriter@example.com', displayName: 'Uma Underwriter', role: 'underwriter' },
+  { email: 'admin@example.com', displayName: 'Adam Admin', role: 'admin' },
+];
