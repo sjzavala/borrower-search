@@ -70,8 +70,18 @@ import { test, expect } from '@playwright/test';
  * protocol round trip — from being silently added to every gap, which pushes the real
  * spacing away from the configured value by an amount nobody wrote down.
  *
- * Deliberately no numbers recorded here. They are a property of the machine, not of this
- * file, and a stale table is worse than none — run the calibration job.
+ * Calibrated on `ubuntu-latest`, 2026-08-19, 8–10 runs per point:
+ *
+ *   ≤120ms      87–100% fail        120.5ms     90% fail
+ *   120.25ms       70% fail         120.75ms    50% fail   ← `vars.RACE_DELAY_MS`
+ *   ≥121ms          0% fail
+ *
+ * Note the band is not monotonic across fractions: `round(i * average)` produces a
+ * different pattern of whole-millisecond gaps at each fraction, and the pattern matters as
+ * much as the mean this close to the tie.
+ *
+ * Treat that table as a dated observation of one runner, not as a property of this file.
+ * If the rate drifts, re-run the calibration job rather than editing the number by feel.
  *
  * That a change of one millisecond flips a test from always-red to always-green is exactly
  * what makes flaky tests so expensive to chase by hand.
