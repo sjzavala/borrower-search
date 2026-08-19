@@ -1,0 +1,18 @@
+name: PR tests
+
+on:
+  pull_request:
+    # `labeled`/`unlabeled` matter: adding the label to an open PR should re-run
+    # selection rather than requiring a new push.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  tests:
+    name: Playwright
+    uses: sjzavala/claude-qa-tms/.github/workflows/intelligent-runner.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      test-dir: tests
+      label: use-intelligent-runner
