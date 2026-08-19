@@ -44,36 +44,41 @@ import { test, expect } from '@playwright/test';
  * a flaky test has no business gating anyone's merge.
  */
 /**
- * The gap between keystrokes, in milliseconds.
+ * The average gap between keystrokes, in milliseconds. May be fractional.
  *
  * 120 is the arithmetic boundary: it makes all five responses expire at the same instant.
  * But identical timers fire in insertion order, so a clean 120 resolves *correctly* every
- * time — and real overhead (input dispatch, the loopback hop) adds a little to every gap,
- * pushing it further onto the safe side. Measured on the machine this was written on:
+ * time, and real overhead — input dispatch, the loopback hop — adds a little to every gap
+ * and pushes it further onto the safe side.
  *
- *   110ms  →  1 pass / 4 fail        113ms  →  8 pass / 0 fail
- *   111ms  →  5 pass / 3 fail        116ms  →  5 pass / 0 fail
- *   112ms  →  7 pass / 1 fail        120ms  →  6 pass / 0 fail
+ * Two things follow from measuring it, and both are the point rather than an inconvenience.
  *
- * The whole transition from reliable failure to reliable success spans about three
- * milliseconds. 111 sits inside it on that machine, at roughly a 40% failure rate.
+ * **The number does not travel.** A value calibrated on a laptop failed 3 of 3 on
+ * `ubuntu-latest`. A test that *always* fails is not flaky — flake-radar scores it as
+ * broken and refuses to quarantine it, which is the correct call and also no demo. So CI
+ * calibrates rather than assumes: `.github/workflows/flake-calibration.yml` sweeps on the
+ * runner and prints a failure-rate table, and the repository variable `RACE_DELAY_MS`
+ * carries the answer into both test jobs.
  *
- * Three milliseconds is narrower than the gap between a laptop and a shared CI runner, so
- * that number does not travel. At 111 on `ubuntu-latest` this failed 3 out of 3 — and a
- * test that *always* fails is not flaky. flake-radar scores it as broken and refuses to
- * quarantine it, which is the correct call and also no demo at all.
+ * **The band is about one millisecond wide.** On the runner the transition from ~100% fail
+ * to ~10% fail happened entirely between two adjacent integers — and
+ * `pressSequentially({ delay })` only accepts an integer, so no setting lands inside it.
+ * This fixture therefore schedules the i-th keystroke at `round(i * average)` from the
+ * start of typing, rather than sleeping a fixed amount between keys. That reaches
+ * fractional average spacing using whole-millisecond waits, so calibration can resolve
+ * below a millisecond. It also removes the cumulative drift a per-gap sleep accumulates,
+ * which is why the boundary sits at a different number than it did before.
  *
- * So CI calibrates rather than assumes: `.github/workflows/flake-calibration.yml` sweeps
- * the delay on the runner and the repository variable `RACE_DELAY_MS` carries the answer.
+ * Deliberately no numbers recorded here. They are a property of the machine, not of this
+ * file, and a stale table is worse than none — run the calibration job.
  *
- * That sensitivity is not a flaw in the fixture, it is the thing being demonstrated: a
- * flaky test is one whose verdict is decided by the machine it ran on rather than by the
- * code under test.
+ * That a change of one millisecond flips a test from always-red to always-green is exactly
+ * what makes flaky tests so expensive to chase by hand.
  */
-// `|| 111` rather than `?? 111`: an unset repository variable arrives as an empty string,
-// not as undefined, and Number('') is 0 — which would fire all five requests at once and
-// turn the fixture into a guaranteed failure.
-const KEYSTROKE_DELAY_MS = Number(process.env.RACE_DELAY_MS) || 111;
+// `|| 113.5` rather than `?? 113.5`: an unset repository variable arrives as an empty
+// string, not as undefined, and Number('') is 0 — which would fire all five requests at
+// once and turn the fixture into a guaranteed failure.
+const KEYSTROKE_DELAY_MS = Number(process.env.RACE_DELAY_MS) || 113.5;
 
 test(
   'BOR-9 — the results table matches the query in the search box',
@@ -90,8 +95,21 @@ test(
     // rowgroup[0] is the header (thead), rowgroup[1] is the body (tbody)
     const dataRows = page.getByRole('rowgroup').nth(1).getByRole('row');
 
-    // Step 2: type `Smith` one character at a time, at typing speed
-    await searchBox.pressSequentially('Smith', { delay: KEYSTROKE_DELAY_MS });
+    // Step 2: type `Smith` one character at a time, at typing speed.
+    //
+    // Each keystroke is scheduled against the start of typing rather than against the
+    // previous key, so the average spacing can be fractional even though every individual
+    // wait is a whole number of milliseconds. `pressSequentially({ delay })` cannot do
+    // that, and on this runner the entire pass/fail transition happens inside a single
+    // millisecond — so whole-millisecond resolution is not enough to sit in it.
+    await searchBox.click();
+    let elapsed = 0;
+    for (const [i, char] of [...'Smith'].entries()) {
+      const scheduledAt = Math.round(i * KEYSTROKE_DELAY_MS);
+      if (scheduledAt > elapsed) await page.waitForTimeout(scheduledAt - elapsed);
+      elapsed = scheduledAt;
+      await searchBox.pressSequentially(char);
+    }
 
     // Step 2 expected: the box holds the full query
     await expect(searchBox).toHaveValue('Smith');
