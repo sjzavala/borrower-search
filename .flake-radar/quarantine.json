@@ -1,5 +1,15 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-19T17:30:53.318Z",
-  "tests": []
+  "updatedAt": "2026-08-19T17:47:29.384Z",
+  "tests": [
+    {
+      "id": "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box",
+      "file": "search-race-stale-response.spec.js",
+      "title": "BOR-9 — the results table matches the query in the search box",
+      "since": "2026-08-19T17:47:29.384Z",
+      "score": 0.3333333333333333,
+      "issue": 6,
+      "escalatedAt": null
+    }
+  ]
 }

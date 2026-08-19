@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-19T17:30:53.318Z",
+  "updatedAt": "2026-08-19T17:47:29.384Z",
   "runs": [
     {
       "key": "32279931489-blocking#1",
@@ -18,6 +18,15 @@
       "commitSha": "324345ca703406500c9e0c6ed75507555d395f50",
       "branch": "main",
       "startedAt": "2026-08-19T17:30:53.318Z",
+      "framework": "playwright"
+    },
+    {
+      "key": "32283553236-blocking#1",
+      "id": "32283553236-blocking",
+      "attempt": 1,
+      "commitSha": "79efa372028d385b3fdbca25dc1b53255e8e5630",
+      "branch": "main",
+      "startedAt": "2026-08-19T17:47:29.384Z",
       "framework": "playwright"
     }
   ],
@@ -65,8 +74,30 @@
       "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": [
         "pass"
       ]
+    },
+    "32283553236-blocking#1": {
+      "chromium|search-case-insensitive-first-name.spec.js::BOR-5 — borrower search matches regardless of query case": [
+        "pass"
+      ],
+      "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box": [
+        "fail",
+        "pass"
+      ],
+      "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": [
+        "pass"
+      ]
     }
   },
-  "quarantine": {},
+  "quarantine": {
+    "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box": {
+      "since": "2026-08-19T17:47:29.384Z",
+      "score": 0.3333333333333333,
+      "reason": "flaked at 1 of 3 observed commits, 1 retry transition — at or above the 20% threshold",
+      "file": "search-race-stale-response.spec.js",
+      "title": "BOR-9 — the results table matches the query in the search box",
+      "issue": 6,
+      "escalatedAt": null
+    }
+  },
   "quarantineLog": []
 }
