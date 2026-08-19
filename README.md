@@ -134,6 +134,10 @@ Three details worth noticing:
   test is very often a real race condition telling you about itself, and reading the
   evidence that way is more useful than muting it.
 
+It quarantined itself on the third trunk build —
+[issue #6](https://github.com/sjzavala/borrower-search/issues/6), scored 33% on one retry
+transition out of three observed commits, with the evidence table attached.
+
 Because bug #9 is planted and permanent, this spec never recovers — so what you'll see here
 is the quarantine and then, at fourteen days, the expiry escalation. The automatic
 *restore* path is exercised end-to-end in
@@ -142,6 +146,29 @@ where the fixture can be made to go clean on demand.
 
 `.flake-radar/history.json` is committed, so every decision the tool makes shows up in a
 diff next to the code it was made about.
+
+### Calibrating the flake
+
+The race is decided by whether each response expires before or after the next, and the
+whole transition from reliable failure to reliable success spans **less than a
+millisecond** on the runner. So the fixture is calibrated rather than guessed:
+
+```bash
+gh workflow run flake-calibration.yml -f delays="120 120.5 120.75 121" -f runs=10
+gh variable set RACE_DELAY_MS --body 120.75      # ~50% failure on ubuntu-latest
+```
+
+Two things had to be true before that number meant anything, and neither was true at first:
+
+- **Keystrokes are scheduled against the clock**, at `round(i * average)` from the start of
+  typing. Sleeping a fixed amount *between* keys silently adds the cost of dispatching each
+  keystroke to every gap, and `pressSequentially({ delay })` only takes whole milliseconds
+  — which cannot reach a band narrower than one.
+- **The assertion waits for every response to land.** It didn't, originally, and that was a
+  false pass: the correct response often arrives *first*, so the table briefly holds the 3
+  Smiths before a staler one overwrites it, and a polling assertion succeeds the instant it
+  ever sees the expected value. The race was lost 3 times out of 3 and the test reported
+  green. A false pass on a race is worse than no test — it certifies the bug as fixed.
 
 ## Reset
 
