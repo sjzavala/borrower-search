@@ -58,6 +58,7 @@ jobs:
       - name: Run everything except the quarantined specs
         env:
           QUARANTINED: ${{ needs.quarantine-list.outputs.pattern }}
+          RACE_DELAY_MS: ${{ vars.RACE_DELAY_MS || '' }}
         run: |
           set -euo pipefail
           if [ -n "$QUARANTINED" ]; then
@@ -96,6 +97,7 @@ jobs:
       - name: Run only the quarantined specs
         env:
           QUARANTINED: ${{ needs.quarantine-list.outputs.pattern }}
+          RACE_DELAY_MS: ${{ vars.RACE_DELAY_MS || '' }}
         run: npx playwright test --grep "$QUARANTINED"
 
       - uses: actions/upload-artifact@v7
@@ -118,25 +120,42 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v7
+      # Downloaded by name into an explicit directory rather than by pattern. A pattern
+      # that matches a single artifact extracts it flat into `path`, and a pattern that
+      # matches several creates a subdirectory per artifact — so the path to read depends
+      # on how many jobs happened to run. Naming each download removes the guesswork.
+      - name: Fetch the blocking results
+        uses: actions/download-artifact@v7
         with:
-          pattern: results-*
-          path: results
+          name: results-blocking
+          path: results/blocking
+
+      - name: Fetch the quarantined results
+        # This artifact only exists when something is quarantined, and its absence is the
+        # normal case rather than an error.
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: results-quarantined
+          path: results/quarantined
+
+      - name: Show what was downloaded
+        run: ls -R results || true
 
       # Each job's report is ingested under its own run id, so the blocking and
       # non-blocking suites never overwrite one another in the history.
       - name: Ingest the blocking suite
-        if: ${{ hashFiles('results/results-blocking/report.json') != '' }}
+        if: ${{ hashFiles('results/blocking/report.json') != '' }}
         uses: sjzavala/flake-radar@v1
         with:
-          report: results/results-blocking/report.json
+          report: results/blocking/report.json
           run-id: ${{ github.run_id }}-blocking
           commit: 'true'
 
       - name: Ingest the quarantined suite
-        if: ${{ hashFiles('results/results-quarantined/report.json') != '' }}
+        if: ${{ hashFiles('results/quarantined/report.json') != '' }}
         uses: sjzavala/flake-radar@v1
         with:
-          report: results/results-quarantined/report.json
+          report: results/quarantined/report.json
           run-id: ${{ github.run_id }}-quarantined
           commit: 'true'
