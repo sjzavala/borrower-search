@@ -27,6 +27,78 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Who is signed in, and therefore what this page renders.
+  //
+  // `null` — anonymous. The app stays usable signed out, deliberately: the read-only view
+  // is what the existing specs and the BUG-9 race fixture exercise, and putting a login
+  // wall in front of them would have meant rewriting three downstream consumers to test
+  // the same behaviour.
+  //
+  // The roles differ *visibly*, which is what makes caching a storageState per role worth
+  // doing rather than theatre:
+  //
+  //   anonymous / analyst   read-only
+  //   underwriter           status becomes an editable control
+  //   admin                 additionally sees the credit score column
+  //
+  // None of this is a security boundary. The API enforces the roles; the client only
+  // decides what to draw. A reader who disables this in devtools gets a status dropdown
+  // that 403s.
+  const [user, setUser] = useState(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
+
+  const canEditStatus = user?.role === 'underwriter' || user?.role === 'admin';
+  const canSeeCreditScore = user?.role === 'admin';
+
+  useEffect(() => {
+    fetch('/api/me', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setUser)
+      .catch(() => setUser(null));
+  }, []);
+
+  async function signIn(email) {
+    setAuthBusy(true);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'sandbox' }),
+      });
+      setUser(res.ok ? await res.json() : null);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function signOut() {
+    setAuthBusy(true);
+    try {
+      await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+      setUser(null);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function changeStatus(id, nextStatus) {
+    const res = await fetch(`/api/borrowers/${id}/status`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    if (!res.ok) {
+      setError(`Could not update status (${res.status})`);
+      return;
+    }
+    // Refetch rather than patching local state, so the table always reflects what the API
+    // actually stored.
+    setDataVersion((v) => v + 1);
+  }
+
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), sortBy });
     if (query) params.set('q', query);
@@ -50,13 +122,46 @@ export default function App() {
         setError(err.message);
         setLoading(false);
       });
-  }, [query, status, minScore, sortBy, page]);
+    // ⚠️ Deliberately no abort and no sequence guard — that absence is BUG-9, and it is
+    // what flake-radar's quarantine demo is calibrated against. `dataVersion` is only here
+    // so a status edit refetches; it changes nothing about the race.
+  }, [query, status, minScore, sortBy, page, dataVersion]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <main>
       <h1>Borrower Search</h1>
+
+      {/* Sign-in is a row of buttons, not a form. The password is published in the repo and
+          typing it in every test would be the slow, flaky UI login this sandbox exists to
+          argue against — the point is to get a session cheaply and cache it. */}
+      <section className="session" data-testid="session-bar">
+        {user ? (
+          <>
+            <span data-testid="current-user">
+              {user.displayName} — <strong>{user.role}</strong>
+            </span>
+            <button type="button" onClick={signOut} disabled={authBusy}>
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <span data-testid="current-user">Not signed in</span>
+            {['analyst', 'underwriter', 'admin'].map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => signIn(`${role}@example.com`)}
+                disabled={authBusy}
+              >
+                Sign in as {role}
+              </button>
+            ))}
+          </>
+        )}
+      </section>
 
       <section className="controls">
         <div className="field">
@@ -124,7 +229,7 @@ export default function App() {
               <th>Name</th>
               <th>Email</th>
               <th>SSN</th>
-              <th>Credit score</th>
+              {canSeeCreditScore && <th>Credit score</th>}
               <th>Loan amount</th>
               <th>State</th>
               <th>Status</th>
@@ -136,10 +241,24 @@ export default function App() {
                 <td>{b.firstName} {b.lastName}</td>
                 <td>{b.email}</td>
                 <td>{maskSsn(b.ssn)}</td>
-                <td>{b.creditScore}</td>
+                {canSeeCreditScore && <td>{b.creditScore}</td>}
                 <td>{formatCurrency(b.loanAmount)}</td>
                 <td>{b.state}</td>
-                <td><span className={`status status--${b.status.toLowerCase()}`}>{b.status}</span></td>
+                <td>
+                  {canEditStatus ? (
+                    <select
+                      aria-label={`Status for ${b.firstName} ${b.lastName}`}
+                      value={b.status}
+                      onChange={(e) => changeStatus(b.id, e.target.value)}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className={`status status--${b.status.toLowerCase()}`}>{b.status}</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

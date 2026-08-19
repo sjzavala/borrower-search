@@ -1,0 +1,28 @@
+# Postgres for the sandbox.
+#
+# The dataset is a fixture, not user data — nothing here is worth persisting between runs,
+# and a stale volume is the classic way "expected: 3 results" quietly stops being true. So
+# there is deliberately no named volume: every `up` starts from an empty database and the
+# server seeds it, which is the same guarantee the in-memory version gave.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: borrower-search-db
+    environment:
+      POSTGRES_USER: borrower
+      POSTGRES_PASSWORD: borrower
+      POSTGRES_DB: borrower_search
+    ports:
+      - '5432:5432'
+    # The app seeds on boot, so it has to wait for a database that can actually accept a
+    # connection — not merely a container that has started.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U borrower -d borrower_search']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    tmpfs:
+      # Everything in memory: faster, and it makes "the data resets" structurally true
+      # rather than a convention someone has to remember.
+      - /var/lib/postgresql/data

@@ -7,11 +7,18 @@
     "server": "node server/index.js",
     "client": "vite",
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "preserver": "docker compose up -d db",
+    "verify:bugs": "node scripts/verify-planted-bugs.mjs",
+    "verify:security": "node scripts/verify-control-endpoints-absent.mjs",
+    "test:isolation": "playwright test tests/isolation --workers=4"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
