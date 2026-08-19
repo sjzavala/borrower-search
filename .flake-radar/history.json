@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-19T17:47:29.384Z",
+  "updatedAt": "2026-08-19T18:09:41.474Z",
   "runs": [
     {
       "key": "32279931489-blocking#1",
@@ -27,6 +27,15 @@
       "commitSha": "79efa372028d385b3fdbca25dc1b53255e8e5630",
       "branch": "main",
       "startedAt": "2026-08-19T17:47:29.384Z",
+      "framework": "playwright"
+    },
+    {
+      "key": "32285671617-blocking#1",
+      "id": "32285671617-blocking",
+      "attempt": 1,
+      "commitSha": "c87827f9a096f0e7cd28f1b62e26e61ed930cb17",
+      "branch": "main",
+      "startedAt": "2026-08-19T18:09:41.474Z",
       "framework": "playwright"
     }
   ],
@@ -81,6 +90,14 @@
       ],
       "chromium|search-race-stale-response.spec.js::BOR-9 — the results table matches the query in the search box": [
         "fail",
+        "pass"
+      ],
+      "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": [
+        "pass"
+      ]
+    },
+    "32285671617-blocking#1": {
+      "chromium|search-case-insensitive-first-name.spec.js::BOR-5 — borrower search matches regardless of query case": [
         "pass"
       ],
       "chromium|smoke.spec.js::BOR-1 — borrower search page loads with its core controls": [
