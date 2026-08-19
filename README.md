@@ -92,7 +92,7 @@ it exercises:
 ```
 
 That header is a coverage map, so CI can read it. Label a PR **`use-intelligent-runner`**
-and [the reusable workflow](https://github.com/sjzavala/claude-qa-tms/blob/main/.github/workflows/intelligent-runner.yml)
+and [playwright-test-selector](https://github.com/sjzavala/playwright-test-selector)
 maps the diff to the specs that claim the changed files, runs only those, and comments the
 selection with its reasoning.
 
