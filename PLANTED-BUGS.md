@@ -6,43 +6,55 @@ value of the exercise. Come back here to score yourself.
 Ten bugs, spread across API math, filter semantics, rendering, data exposure, and
 client state. A strong hour finds 5–7 of them.
 
+All ten survived the migration from the in-memory store to Postgres, and the seven that are
+observable through the API are now asserted rather than assumed:
+
+```bash
+npm run verify:bugs
+```
+
+A migration that silently *fixes* a planted bug is worse than one that breaks the app — the
+sandbox would keep advertising ten defects while the exercise quietly had nine. Several now
+take deliberate effort to preserve; the loan-amount sort needed an explicit `::text` cast
+once the column became numeric.
+
 ---
 
-### 1. Search is case-sensitive — `server/routes.js:38`
+### 1. Search is case-sensitive — `server/routes.js:70`
 
-`b.lastName.includes(query)` compares raw strings. Searching `smith` returns 0 results;
+`last_name LIKE $1` — `LIKE` is case-sensitive in Postgres; `ILIKE` is the fix. Was `b.lastName.includes(query)` before the migration. Searching `smith` returns 0 results;
 `Smith` returns 3. **High** — users type lowercase.
 
-### 2. Search query is not trimmed — `server/routes.js:38`
+### 2. Search query is not trimmed — `server/routes.js:70`
 
 `Smith ` (trailing space) returns 0 results. Same line as #1 but a separate defect —
 fixing the case sensitivity does not fix this. **Medium.**
 
-### 3. Pagination drops one record per page — `server/routes.js:53`
+### 3. Pagination drops one record per page — `server/routes.js:92`
 
-`sorted.slice(start, start + limit - 1)` returns `limit - 1` rows while `start` still
-advances by `limit`. Page 1 = ids 1–9, page 2 = ids 11–19. **Borrowers 10, 20, 30, 40,
+`LIMIT limit - 1 OFFSET start` returns `limit - 1` rows while the offset still advances
+by `limit`. Was `sorted.slice(start, start + limit - 1)`. Page 1 = ids 1–9, page 2 = ids 11–19. **Borrowers 10, 20, 30, 40,
 50, 60 are unreachable through the UI.** **Critical** — silent data loss; a search that
 should surface a match can miss it entirely.
 
-### 4. `total` ignores all filters — `server/routes.js:61`
+### 4. `total` ignores all filters — `server/routes.js:107`
 
-Always `borrowers.length` (60). Search `Smith` → 3 rows displayed but "60 borrowers" and
+The count query carries no `WHERE`, so it is always 60. Search `Smith` → 3 rows displayed but "60 borrowers" and
 6 pages of pagination, 5 of them empty. **High.**
 
-### 5. Minimum credit score is exclusive — `server/routes.js:47`
+### 5. Minimum credit score is exclusive — `server/routes.js:82`
 
-`b.creditScore > minScore` should be `>=`. Filtering at `700` excludes the two borrowers
+`credit_score > $n` should be `>=`. Filtering at `700` excludes the two borrowers
 whose score is exactly 700 (ids 6, 13). **High** — a lender filtering at a policy
 threshold silently drops qualifying applicants.
 
-### 6. Loan amount sorts as text — `server/routes.js:18`
+### 6. Loan amount sorts as text — `server/routes.js:28`
 
 `String(b.loanAmount).localeCompare(...)`. Descending sort puts `$125,000` above
 `$1,025,000`, and `$100,000` lands at position 58 while `$90,000` sits at position 6.
 **High.**
 
-### 7. XSS in the empty state — `client/src/App.jsx:116`
+### 7. XSS in the empty state — `client/src/App.jsx:221`
 
 `dangerouslySetInnerHTML` interpolates the raw query. Search
 `<img src=x onerror=alert(1)>` and it executes. Also try `<b>test</b>` for a quieter
@@ -54,15 +66,22 @@ The UI masks SSNs to `***-**-1000`, but `GET /api/borrowers` returns the complet
 in every record. Visible in the network tab — the masking is cosmetic only. **Critical** —
 PII exposure to anyone who can call the endpoint.
 
-### 9. Stale responses overwrite newer ones — `client/src/App.jsx:39`
+### 9. Stale responses overwrite newer ones — `client/src/App.jsx:102`
 
-The `fetch` in `useEffect` has no sequencing guard or abort, and `server/routes.js:56`
+The `fetch` in `useEffect` has no sequencing guard or abort, and `server/routes.js:120`
 makes shorter queries *slower* (`600 - query.length * 120` ms). Type `smith` quickly: the
 `smith` response returns first, then the older `s` response lands and overwrites it. The
 box says `smith` while the table shows results for `s`. **High** — intermittent, and the
 kind of bug that gets closed as "can't reproduce".
 
-### 10. Changing the search does not reset pagination — `client/src/App.jsx:69`
+> ⚠️ That artificial delay is **load-bearing**, and it survived the Postgres migration on
+> purpose. It is what makes this race observable, and
+> [flake-radar](https://github.com/sjzavala/flake-radar) uses the race as its live
+> quarantine fixture — `tests/search-race-stale-response.spec.js` is calibrated against
+> those exact numbers. Removing the delay does not just fix a bug; it silently stops the
+> spec flaking and the demo has nothing left to quarantine.
+
+### 10. Changing the search does not reset pagination — `client/src/App.jsx:174`
 
 Every other control calls `setPage(1)`; the search input does not. Go to page 3, type a
 search, and you get page 3 of the new result set — usually empty, with no indication
