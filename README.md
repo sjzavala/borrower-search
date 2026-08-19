@@ -100,6 +100,49 @@ Change `server/routes.js` and only the specs guarding it run. Change something n
 claims and it runs **everything** — narrowing only happens where it can be justified,
 because a runner that silently skips the one test that mattered is worse than no runner.
 
+## CI: flake quarantine
+
+One spec here is genuinely non-deterministic —
+[`search-race-stale-response.spec.js`](tests/search-race-stale-response.spec.js). Nothing
+in it is randomised. It types `Smith` one character at a time at a speed that makes all
+five API responses land at the same instant, and planted bug #9 has no sequencing guard, so
+whichever one lands last wins. About four times in ten, that's a response for an earlier
+prefix, and the table fills with the wrong borrowers while the box still reads `Smith`.
+
+That makes it a real fixture for
+[flake-radar](https://github.com/sjzavala/flake-radar), which runs on the trunk build:
+
+```
+Tests (blocking)               everything except the quarantined specs
+Tests (quarantined)            only the quarantined ones — continue-on-error
+Score and decide               flake-radar ingests both reports
+```
+
+Retries are on in CI on purpose. A retry that changes the outcome is a flake proven at one
+commit, on one machine, seconds apart — the strongest evidence available, and it only
+exists if you let the retry happen and then record it.
+
+Three details worth noticing:
+
+- **The flaky spec is excluded from the PR suite** (`--grep-invert @flake-demo`). A flaky
+  test has no business gating anyone's merge. It runs on trunk, where being flaky is the
+  point.
+- **Quarantined specs keep running**, in the second job, off the critical path. Skip them
+  and they can never produce the clean runs that would release them — quarantine becomes
+  permanent, which is the failure mode the whole design is trying to avoid.
+- **The evidence flake-radar attaches to its issue is a fingerprint of bug #9.** A flaky
+  test is very often a real race condition telling you about itself, and reading the
+  evidence that way is more useful than muting it.
+
+Because bug #9 is planted and permanent, this spec never recovers — so what you'll see here
+is the quarantine and then, at fourteen days, the expiry escalation. The automatic
+*restore* path is exercised end-to-end in
+[flake-radar's own self-test](https://github.com/sjzavala/flake-radar/blob/main/.github/workflows/ci.yml),
+where the fixture can be made to go clean on demand.
+
+`.flake-radar/history.json` is committed, so every decision the tool makes shows up in a
+diff next to the code it was made about.
+
 ## Reset
 
 Nothing persists — the dataset is rebuilt in memory on every server start. Restart

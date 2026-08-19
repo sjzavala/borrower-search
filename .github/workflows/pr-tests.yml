@@ -46,8 +46,13 @@ jobs:
         run: |
           # Unquoted on purpose: the selector emits a space-separated list of paths, and
           # an empty value correctly degrades to running the whole suite.
+          #
+          # @flake-demo is excluded here. That spec is deliberately non-deterministic (it
+          # is the live fixture for flake-radar), and a flaky test has no business gating
+          # anyone's merge. It runs on the trunk build instead, where being flaky is the
+          # point — see flake-radar.yml.
           # shellcheck disable=SC2086
-          npx playwright test $SPECS
+          npx playwright test $SPECS --grep-invert @flake-demo
 
       - name: Upload Playwright report
         if: always()
