@@ -63,11 +63,12 @@ import { test, expect } from '@playwright/test';
  * **The band is about one millisecond wide.** On the runner the transition from ~100% fail
  * to ~10% fail happened entirely between two adjacent integers — and
  * `pressSequentially({ delay })` only accepts an integer, so no setting lands inside it.
- * This fixture therefore schedules the i-th keystroke at `round(i * average)` from the
- * start of typing, rather than sleeping a fixed amount between keys. That reaches
- * fractional average spacing using whole-millisecond waits, so calibration can resolve
- * below a millisecond. It also removes the cumulative drift a per-gap sleep accumulates,
- * which is why the boundary sits at a different number than it did before.
+ * This fixture therefore schedules the i-th keystroke at `round(i * average)` measured
+ * against the clock, rather than sleeping a fixed amount between keys. Two reasons: it
+ * reaches fractional average spacing out of whole-millisecond waits, so calibration can
+ * resolve below a millisecond; and it stops the cost of dispatching a keystroke — a
+ * protocol round trip — from being silently added to every gap, which pushes the real
+ * spacing away from the configured value by an amount nobody wrote down.
  *
  * Deliberately no numbers recorded here. They are a property of the machine, not of this
  * file, and a stale table is worse than none — run the calibration job.
@@ -95,6 +96,13 @@ test(
     // rowgroup[0] is the header (thead), rowgroup[1] is the body (tbody)
     const dataRows = page.getByRole('rowgroup').nth(1).getByRole('row');
 
+    // One search request per keystroke — the app refetches on every change with no
+    // debounce. Counted so the assertions below can wait for the table to settle.
+    let landed = 0;
+    page.on('response', (r) => {
+      if (r.url().includes('/api/borrowers')) landed += 1;
+    });
+
     // Step 2: type `Smith` one character at a time, at typing speed.
     //
     // Each keystroke is scheduled against the start of typing rather than against the
@@ -103,22 +111,42 @@ test(
     // that, and on this runner the entire pass/fail transition happens inside a single
     // millisecond — so whole-millisecond resolution is not enough to sit in it.
     await searchBox.click();
-    let elapsed = 0;
+    const startedAt = Date.now();
     for (const [i, char] of [...'Smith'].entries()) {
-      const scheduledAt = Math.round(i * KEYSTROKE_DELAY_MS);
-      if (scheduledAt > elapsed) await page.waitForTimeout(scheduledAt - elapsed);
-      elapsed = scheduledAt;
+      // Wait until the target moment, measured against the clock rather than against the
+      // previous key. Dispatching a keystroke costs a protocol round trip, and sleeping a
+      // fixed amount *between* keys silently adds that cost to every gap — the spacing
+      // then drifts away from the configured value by an amount nobody wrote down.
+      const remaining = startedAt + Math.round(i * KEYSTROKE_DELAY_MS) - Date.now();
+      if (remaining > 0) await page.waitForTimeout(remaining);
       await searchBox.pressSequentially(char);
     }
 
     // Step 2 expected: the box holds the full query
     await expect(searchBox).toHaveValue('Smith');
 
+    // Wait for all five responses to land before looking at the table.
+    //
+    // This is load-bearing, and leaving it out was a bug this spec had at first. The five
+    // responses arrive within about twenty milliseconds of each other and the correct one
+    // is often among the first — so for a moment the table really does hold the 3 Smiths,
+    // before a staler response overwrites it. A polling assertion passes the instant it
+    // *ever* sees the expected value, so without this the test reports a pass on a state
+    // the user never gets to keep. A false pass on a race is worse than no test: it
+    // certifies the bug as fixed.
+    //
+    // Counting responses rather than using `waitForLoadState('networkidle')`, which
+    // resolves immediately when the page has already been idle once — as it has here,
+    // because the baseline request was settled before typing began.
+    await expect.poll(() => landed, { message: 'all five keystroke responses landed' }).toBe(5);
+    // One frame for React to apply the last one it received.
+    await page.waitForTimeout(50);
+
     // Step 3 expected: the table shows the 3 borrowers named Smith — the results for what
     // is actually in the box, not for a prefix of it.
     //
-    // When the race is lost, a response for "S" or "Sm" lands last and the table fills
-    // with a broader set while the box still reads "Smith". That is the defect: the two
+    // When the race is lost, a response for "S" or "Sm" lands last and the table settles
+    // on a broader set while the box still reads "Smith". That is the defect: the two
     // halves of the screen disagree, and nothing on the page says so.
     await expect(dataRows).toHaveCount(3);
     await expect(page.getByRole('cell', { name: /Smith/ })).toHaveCount(3);
